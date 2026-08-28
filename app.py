@@ -204,7 +204,7 @@ if st.session_state['logado']:
             else:
                 with st.form("form_movimentacao"):
                     material_selecionado = st.selectbox("Material", lista_materiais)
-                    tipo_mov = st.radio("Tipo de Movimentação", ["Saída"], horizontal=True)
+                    tipo_mov = st.radio("Tipo de Movimentação", ["Entrada", "Saída"], horizontal=True)
                     quantidade_mov = st.number_input("Quantidade", min_value=1, step=1)
                     
                     st.markdown("---")
