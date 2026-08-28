@@ -124,7 +124,7 @@ if st.session_state['logado']:
                 nome_produto = st.text_input("Nome do Material")
                 categoria = st.selectbox("Categoria", lista_categorias)
                 
-                lista_unidades = ["Unidade (un)", "Metro (m)", "Quilograma (kg)", "Saco", "Rolo", "Caixa", "Litro (L)", "Grama (g)", "Par", "Kit", "Metro Cúbico (m³)"]
+                lista_unidades = ["Unidade (un)", "Metro (m)", "Quilograma (kg)", "Sacos", "Rolos", "Caixas", "Litros (L)", "Gramas (g)", "Par", "Kit", "Metro Cúbico (m³)"]
                 unidade = st.selectbox("Unidade de Medida", lista_unidades)
                 estoque_minimo = st.number_input("Estoque Mínimo (Alerta)", min_value=1, step=1)
                 
