@@ -124,7 +124,7 @@ if st.session_state['logado']:
                 nome_produto = st.text_input("Nome do Material")
                 categoria = st.selectbox("Categoria", lista_categorias)
                 
-                lista_unidades = ["Unidade (un)", "Metro (m)", "Quilograma (kg)", "Sacos", "Rolos", "Caixas", "Litros (L)", "Gramas (g)", "Par", "Kit", "Metro Cúbico (m³)"]
+                lista_unidades = ["Unidade (un)", "Metro (m)", "Quilograma (kg)", "Saco", "Rolo", "Caixa", "Litro (L)", "Grama (g)", "Par", "Kit", "Metro Cúbico (m³)"]
                 unidade = st.selectbox("Unidade de Medida", lista_unidades)
                 estoque_minimo = st.number_input("Estoque Mínimo (Alerta)", min_value=1, step=1)
                 
@@ -144,7 +144,6 @@ if st.session_state['logado']:
             df_produtos = pd.read_sql_query('SELECT id, nome, categoria, quantidade, estoque_minimo, unidade FROM produtos', conn)
             
             if not df_produtos.empty:
-                # --- NOVOS FILTROS DINÂMICOS ---
                 col_pesquisa, col_filtro = st.columns(2)
                 with col_pesquisa:
                     termo_pesquisa = st.text_input("🔍 Buscar Material", "")
@@ -152,12 +151,10 @@ if st.session_state['logado']:
                     opcoes_cat = ["Todas"] + sorted(df_produtos['categoria'].unique().tolist())
                     categoria_filtro = st.selectbox("📂 Filtrar por Categoria", opcoes_cat)
                 
-                # Aplicando os filtros
                 if termo_pesquisa:
                     df_produtos = df_produtos[df_produtos['nome'].str.contains(termo_pesquisa, case=False, na=False)]
                 if categoria_filtro != "Todas":
                     df_produtos = df_produtos[df_produtos['categoria'] == categoria_filtro]
-                # --------------------------------
 
                 def formatar_quantidade(linha):
                     unid = linha['unidade'] if pd.notna(linha['unidade']) else 'un'
@@ -197,44 +194,55 @@ if st.session_state['logado']:
             st.subheader("Registrar Movimentação")
             conn = psycopg2.connect(st.secrets["DB_URL"])
             df_nomes = pd.read_sql_query('SELECT nome FROM produtos', conn)
-            lista_materiais = df_nomes['nome'].tolist() if not df_nomes.empty else []
+            lista_materiais_bd = df_nomes['nome'].tolist() if not df_nomes.empty else []
             
-            if not lista_materiais:
+            if not lista_materiais_bd:
                 st.warning("Cadastre um material na Aba 1 antes de registrar movimentações.")
             else:
-                with st.form("form_movimentacao"):
-                    material_selecionado = st.selectbox("Material", lista_materiais)
-                    tipo_mov = st.radio("Tipo de Movimentação", ["Entrada", "Saída"], horizontal=True)
-                    quantidade_mov = st.number_input("Quantidade", min_value=1, step=1)
-                    
-                    st.markdown("---")
-                    data_retirada = st.date_input("Data da Retirada / Movimentação")
-                    funcionario = st.text_input("Nome do Funcionário/Motorista")
-                    empresa = st.text_input("Empresa (Terceirizada/Fornecedor)")
-                    motivo = st.text_input("Observação / Destino")
-                    
-                    submit_mov = st.form_submit_button("Registrar no Estoque")
-                    
-                    if submit_mov:
-                        if tipo_mov == "Saída" and (not funcionario or not empresa):
-                            st.error("O nome do funcionário e a empresa são obrigatórios para registrar uma saída.")
-                        else:
-                            cursor = conn.cursor()
-                            cursor.execute("SELECT quantidade, unidade FROM produtos WHERE nome = %s", (material_selecionado,))
-                            resultado = cursor.fetchone()
-                            estoque_atual = resultado[0]
-                            unid_atual = resultado[1]
-                            
-                            if tipo_mov == "Saída" and quantidade_mov > estoque_atual:
-                                st.error(f"Estoque insuficiente! Você só tem {estoque_atual} {unid_atual} de {material_selecionado}.")
+                # BARRA DE PESQUISA (Fora do formulário para busca em tempo real)
+                pesquisa_mov = st.text_input("🔍 Filtrar lista de materiais", placeholder="Digite o nome do material...")
+                
+                if pesquisa_mov:
+                    lista_filtrada = [m for m in lista_materiais_bd if pesquisa_mov.lower() in m.lower()]
+                else:
+                    lista_filtrada = lista_materiais_bd
+                
+                if not lista_filtrada:
+                    st.error("Nenhum material encontrado com esse nome na busca.")
+                else:
+                    with st.form("form_movimentacao"):
+                        material_selecionado = st.selectbox("Selecione o Material", lista_filtrada)
+                        tipo_mov = st.radio("Tipo de Movimentação", ["Entrada", "Saída"], horizontal=True)
+                        quantidade_mov = st.number_input("Quantidade", min_value=1, step=1)
+                        
+                        st.markdown("---")
+                        data_retirada = st.date_input("Data da Retirada / Movimentação")
+                        funcionario = st.text_input("Nome do Funcionário/Motorista")
+                        empresa = st.text_input("Empresa (Terceirizada/Fornecedor)")
+                        motivo = st.text_input("Observação / Destino")
+                        
+                        submit_mov = st.form_submit_button("Registrar no Estoque")
+                        
+                        if submit_mov:
+                            if tipo_mov == "Saída" and (not funcionario or not empresa):
+                                st.error("O nome do funcionário e a empresa são obrigatórios para registrar uma saída.")
                             else:
-                                novo_estoque = estoque_atual + quantidade_mov if tipo_mov == "Entrada" else estoque_atual - quantidade_mov
-                                data_ret_str = data_retirada.strftime('%d/%m/%Y')
-                                cursor.execute("UPDATE produtos SET quantidade = %s WHERE nome = %s", (novo_estoque, material_selecionado))
-                                cursor.execute("INSERT INTO movimentacoes (produto, tipo, quantidade, funcionario, empresa, data_retirada, motivo) VALUES (%s, %s, %s, %s, %s, %s, %s)", (material_selecionado, tipo_mov, quantidade_mov, funcionario, empresa, data_ret_str, motivo))
-                                conn.commit()
-                                st.success("Movimentação registrada com sucesso!")
-                                st.rerun()
+                                cursor = conn.cursor()
+                                cursor.execute("SELECT quantidade, unidade FROM produtos WHERE nome = %s", (material_selecionado,))
+                                resultado = cursor.fetchone()
+                                estoque_atual = resultado[0]
+                                unid_atual = resultado[1]
+                                
+                                if tipo_mov == "Saída" and quantidade_mov > estoque_atual:
+                                    st.error(f"Estoque insuficiente! Você só tem {estoque_atual} {unid_atual} de {material_selecionado}.")
+                                else:
+                                    novo_estoque = estoque_atual + quantidade_mov if tipo_mov == "Entrada" else estoque_atual - quantidade_mov
+                                    data_ret_str = data_retirada.strftime('%d/%m/%Y')
+                                    cursor.execute("UPDATE produtos SET quantidade = %s WHERE nome = %s", (novo_estoque, material_selecionado))
+                                    cursor.execute("INSERT INTO movimentacoes (produto, tipo, quantidade, funcionario, empresa, data_retirada, motivo) VALUES (%s, %s, %s, %s, %s, %s, %s)", (material_selecionado, tipo_mov, quantidade_mov, funcionario, empresa, data_ret_str, motivo))
+                                    conn.commit()
+                                    st.success("Movimentação registrada com sucesso!")
+                                    st.rerun()
 
         with col_mov2:
             st.subheader("Histórico de Movimentações")
